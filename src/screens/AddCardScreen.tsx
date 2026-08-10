@@ -34,27 +34,33 @@ export default function AddCardScreen({ navigation }: any) {
     }
 
     const result = useCamera
-      ? await ImagePicker.launchCameraAsync({ quality: 0.7 })
-      : await ImagePicker.launchImageLibraryAsync({ quality: 0.7 })
+      ? await ImagePicker.launchCameraAsync({ quality: 0.7, base64: true })
+      : await ImagePicker.launchImageLibraryAsync({ quality: 0.7, base64: true })
 
     if (result.canceled || !result.assets[0]) return
 
-    const uri = result.assets[0].uri
-    setImageUri(uri)
+    const asset = result.assets[0]
+    setImageUri(asset.uri)
     setOcrDone(false)
-    await runOCR(uri)
+
+    if (asset.base64) {
+      await runOCR(asset.base64)
+    } else {
+      Alert.alert('Error', 'Gagal membaca gambar. Coba lagi.')
+    }
   }
 
-  const runOCR = async (uri: string) => {
+  const runOCR = async (base64: string) => {
     setScanning(true)
     try {
-      const result = await recognizeText(uri)
-      if (result.name) setName(result.name)
-      if (result.number) setNumber(result.number)
+      const result = await recognizeText(base64)
       if (result.ktpData && type === 'ktp') {
         setKtpData(result.ktpData)
         if (result.ktpData.nama) setName(result.ktpData.nama)
         if (result.ktpData.nik) setNumber(result.ktpData.nik)
+      } else {
+        if (result.name) setName(result.name)
+        if (result.number) setNumber(result.number)
       }
       setOcrDone(true)
     } catch (e: any) {
