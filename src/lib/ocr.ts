@@ -60,9 +60,11 @@ function extractValue(line: string, label: RegExp): string | null {
   if (!match) return null
   // Get everything after the matched label
   const afterLabel = line.substring(match.index! + match[0].length)
-  // Strip leading colon, dot, spaces
-  const cleaned = afterLabel.replace(/^[\s:.\-]+/, '').trim()
-  return cleaned || null
+  // Aggressively strip leading colons, dots, dashes, spaces (even multiple)
+  const cleaned = afterLabel.replace(/^[\s:.\-;,=|]+/, '').trim()
+  // Also strip trailing colon if value ends with one
+  const final = cleaned.replace(/[:]+$/, '').trim()
+  return final || null
 }
 
 /**

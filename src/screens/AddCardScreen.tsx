@@ -16,6 +16,8 @@ export default function AddCardScreen({ navigation }: any) {
   const [imageUri, setImageUri] = useState<string | null>(null)
   const [scanning, setScanning] = useState(false)
   const [ocrDone, setOcrDone] = useState(false)
+  const [ocrRawText, setOcrRawText] = useState('')
+  const [showRawOcr, setShowRawOcr] = useState(false)
 
   // KTP specific fields
   const [ktpData, setKtpData] = useState<KTPData>({})
@@ -71,6 +73,7 @@ export default function AddCardScreen({ navigation }: any) {
     setScanning(true)
     try {
       const result = await recognizeText(base64)
+      setOcrRawText(result.text)
       if (result.ktpData && type === 'ktp') {
         setKtpData(result.ktpData)
         if (result.ktpData.nama) setName(result.ktpData.nama)
@@ -148,11 +151,24 @@ export default function AddCardScreen({ navigation }: any) {
           <View style={s.previewWrap}>
             <Image source={{ uri: imageUri }} style={s.preview} resizeMode="cover" />
             {ocrDone && <View style={s.ocrBadge}><Text style={s.ocrBadgeText}>✓ Teks terbaca</Text></View>}
-            <TouchableOpacity style={s.removeImg} onPress={() => { setImageUri(null); setOcrDone(false) }}>
+            <TouchableOpacity style={s.removeImg} onPress={() => { setImageUri(null); setOcrDone(false); setOcrRawText('') }}>
               <Text style={s.removeImgText}>✕</Text>
             </TouchableOpacity>
           </View>
         )}
+
+        {ocrDone && ocrRawText ? (
+          <View>
+            <TouchableOpacity style={s.ocrToggle} onPress={() => setShowRawOcr(!showRawOcr)}>
+              <Text style={s.ocrToggleText}>{showRawOcr ? '▼ Sembunyikan Hasil OCR' : '▶ Lihat Hasil OCR (untuk cek manual)'}</Text>
+            </TouchableOpacity>
+            {showRawOcr && (
+              <View style={s.ocrBox}>
+                <Text style={s.ocrBoxText}>{ocrRawText}</Text>
+              </View>
+            )}
+          </View>
+        ) : null}
 
         {/* Card type */}
         <Text style={s.label}>Jenis Kartu</Text>
@@ -246,6 +262,10 @@ const s = StyleSheet.create({
   removeImgText: { color: '#fff', fontSize: 14, fontWeight: '700' },
   ocrBadge: { position: 'absolute', bottom: 8, left: 8, backgroundColor: 'rgba(22,163,74,0.9)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
   ocrBadgeText: { color: '#fff', fontSize: 11, fontWeight: '600' },
+  ocrToggle: { marginTop: 10, paddingVertical: 8 },
+  ocrToggleText: { color: '#666', fontSize: 12 },
+  ocrBox: { backgroundColor: '#1a1a1a', borderRadius: 8, padding: 12, marginTop: 4, borderWidth: 1, borderColor: '#2a2a2a' },
+  ocrBoxText: { color: '#888', fontSize: 11, fontFamily: 'monospace', lineHeight: 16 },
   typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   typeBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a' },
   typeBtnActive: { backgroundColor: '#fff', borderColor: '#fff' },
