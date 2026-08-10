@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import * as ImagePicker from 'expo-image-picker'
 import { addCard } from '../lib/storage'
 import { recognizeText } from '../lib/ocr'
-import { CARD_LABELS, type CardType, type IDCard } from '../types/card'
+import { CARD_LABELS, type CardType, type IDCard, type KTPData } from '../types/card'
 
 const cardTypes: CardType[] = ['ktp', 'sim', 'npwp', 'bpjs-kesehatan', 'bpjs-tk', 'krl', 'kk']
 
@@ -15,6 +15,13 @@ export default function AddCardScreen({ navigation }: any) {
   const [imageUri, setImageUri] = useState<string | null>(null)
   const [scanning, setScanning] = useState(false)
   const [ocrDone, setOcrDone] = useState(false)
+
+  // KTP specific fields
+  const [ktpData, setKtpData] = useState<KTPData>({})
+
+  const updateKtp = (field: keyof KTPData, value: string) => {
+    setKtpData(prev => ({ ...prev, [field]: value }))
+  }
 
   const pickImage = async (useCamera: boolean) => {
     const permission = useCamera
@@ -44,6 +51,11 @@ export default function AddCardScreen({ navigation }: any) {
       const result = await recognizeText(uri)
       if (result.name) setName(result.name)
       if (result.number) setNumber(result.number)
+      if (result.ktpData && type === 'ktp') {
+        setKtpData(result.ktpData)
+        if (result.ktpData.nama) setName(result.ktpData.nama)
+        if (result.ktpData.nik) setNumber(result.ktpData.nik)
+      }
       setOcrDone(true)
     } catch (e: any) {
       console.warn('OCR error:', e)
@@ -58,6 +70,14 @@ export default function AddCardScreen({ navigation }: any) {
       Alert.alert('Error', 'Nama dan nomor wajib diisi')
       return
     }
+
+    const finalKtpData: KTPData | undefined = type === 'ktp' ? {
+      ...ktpData,
+      nama: name.trim(),
+      nik: number.trim(),
+      photoUri: imageUri || undefined,
+    } : undefined
+
     const card: IDCard = {
       id: Date.now().toString(),
       type,
@@ -65,6 +85,7 @@ export default function AddCardScreen({ navigation }: any) {
       number: number.trim(),
       imageUri: imageUri || undefined,
       data: {},
+      ktpData: finalKtpData,
       createdAt: new Date().toISOString(),
     }
     await addCard(card)
@@ -77,7 +98,7 @@ export default function AddCardScreen({ navigation }: any) {
         <Text style={s.title}>Tambah Kartu</Text>
 
         {/* Photo input */}
-        <Text style={s.label}>Scan Kartu (opsional)</Text>
+        <Text style={s.label}>Scan Kartu</Text>
         <View style={s.photoRow}>
           <TouchableOpacity style={s.photoBtn} onPress={() => pickImage(true)}>
             <Text style={s.photoBtnIcon}>📷</Text>
@@ -120,25 +141,30 @@ export default function AddCardScreen({ navigation }: any) {
           ))}
         </View>
 
-        {/* Manual fields */}
-        <Text style={s.label}>Nama Pemilik</Text>
-        <TextInput
-          style={s.input}
-          value={name}
-          onChangeText={setName}
-          placeholder="Nama sesuai kartu"
-          placeholderTextColor="#555"
-        />
+        {/* Basic fields */}
+        <Field label="Nama" value={name} onChange={setName} placeholder="Nama sesuai kartu" />
+        <Field label="Nomor (NIK)" value={number} onChange={setNumber} placeholder="Nomor identitas" />
 
-        <Text style={s.label}>Nomor Kartu</Text>
-        <TextInput
-          style={s.input}
-          value={number}
-          onChangeText={setNumber}
-          placeholder="Nomor identitas"
-          placeholderTextColor="#555"
-          keyboardType="default"
-        />
+        {/* KTP extra fields */}
+        {type === 'ktp' && (
+          <>
+            <Text style={s.sectionHeader}>Data KTP</Text>
+            <Field label="Provinsi" value={ktpData.provinsi || ''} onChange={v => updateKtp('provinsi', v)} placeholder="Provinsi" />
+            <Field label="Kab/Kota" value={ktpData.kabupaten || ''} onChange={v => updateKtp('kabupaten', v)} placeholder="Kabupaten/Kota" />
+            <Field label="Tempat Lahir" value={ktpData.tempatLahir || ''} onChange={v => updateKtp('tempatLahir', v)} placeholder="Tempat lahir" />
+            <Field label="Tanggal Lahir" value={ktpData.tanggalLahir || ''} onChange={v => updateKtp('tanggalLahir', v)} placeholder="DD-MM-YYYY" />
+            <Field label="Jenis Kelamin" value={ktpData.jenisKelamin || ''} onChange={v => updateKtp('jenisKelamin', v)} placeholder="LAKI-LAKI / PEREMPUAN" />
+            <Field label="Alamat" value={ktpData.alamat || ''} onChange={v => updateKtp('alamat', v)} placeholder="Alamat lengkap" />
+            <Field label="RT/RW" value={ktpData.rtRw || ''} onChange={v => updateKtp('rtRw', v)} placeholder="001/002" />
+            <Field label="Kel/Desa" value={ktpData.kelDesa || ''} onChange={v => updateKtp('kelDesa', v)} placeholder="Kelurahan/Desa" />
+            <Field label="Kecamatan" value={ktpData.kecamatan || ''} onChange={v => updateKtp('kecamatan', v)} placeholder="Kecamatan" />
+            <Field label="Agama" value={ktpData.agama || ''} onChange={v => updateKtp('agama', v)} placeholder="Agama" />
+            <Field label="Status Perkawinan" value={ktpData.statusPerkawinan || ''} onChange={v => updateKtp('statusPerkawinan', v)} placeholder="Belum Kawin / Kawin / Cerai" />
+            <Field label="Pekerjaan" value={ktpData.pekerjaan || ''} onChange={v => updateKtp('pekerjaan', v)} placeholder="Pekerjaan" />
+            <Field label="Kewarganegaraan" value={ktpData.kewarganegaraan || ''} onChange={v => updateKtp('kewarganegaraan', v)} placeholder="WNI / WNA" />
+            <Field label="Berlaku Hingga" value={ktpData.berlakuHingga || ''} onChange={v => updateKtp('berlakuHingga', v)} placeholder="SEUMUR HIDUP" />
+          </>
+        )}
 
         <TouchableOpacity style={s.saveBtn} onPress={handleSave}>
           <Text style={s.saveBtnText}>Simpan Kartu</Text>
@@ -152,11 +178,27 @@ export default function AddCardScreen({ navigation }: any) {
   )
 }
 
+function Field({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder: string }) {
+  return (
+    <>
+      <Text style={s.label}>{label}</Text>
+      <TextInput
+        style={s.input}
+        value={value}
+        onChangeText={onChange}
+        placeholder={placeholder}
+        placeholderTextColor="#555"
+      />
+    </>
+  )
+}
+
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f0f0f' },
   scroll: { padding: 24, paddingBottom: 60 },
   title: { fontSize: 24, fontWeight: '800', color: '#fff', marginBottom: 24 },
-  label: { fontSize: 13, fontWeight: '600', color: '#666', marginBottom: 8, marginTop: 20, textTransform: 'uppercase', letterSpacing: 0.5 },
+  label: { fontSize: 13, fontWeight: '600', color: '#666', marginBottom: 6, marginTop: 14, textTransform: 'uppercase', letterSpacing: 0.5 },
+  sectionHeader: { fontSize: 15, fontWeight: '700', color: '#aaa', marginTop: 28, marginBottom: 4, borderTopWidth: 1, borderTopColor: '#222', paddingTop: 20 },
   photoRow: { flexDirection: 'row', gap: 12 },
   photoBtn: {
     flex: 1,

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { getCards, deleteCard } from '../lib/storage'
-import { CARD_LABELS, type IDCard } from '../types/card'
+import { CARD_LABELS, KTP_FIELD_LABELS, type IDCard, type KTPData } from '../types/card'
 import CardVisual from '../components/CardVisual'
 
 export default function DetailScreen({ route, navigation }: any) {
@@ -22,47 +22,67 @@ export default function DetailScreen({ route, navigation }: any) {
 
   if (!card) return null
 
-  const dataEntries = Object.entries(card.data).filter(([_, v]) => v)
+  const ktpFields: (keyof KTPData)[] = [
+    'provinsi', 'kabupaten', 'nik', 'nama', 'tempatLahir', 'tanggalLahir',
+    'jenisKelamin', 'alamat', 'rtRw', 'kelDesa', 'kecamatan',
+    'agama', 'statusPerkawinan', 'pekerjaan', 'kewarganegaraan', 'berlakuHingga',
+  ]
 
   return (
     <SafeAreaView style={s.container}>
       <ScrollView contentContainerStyle={s.scroll}>
-        {/* Back button */}
         <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
           <Text style={s.backText}>← Kembali</Text>
         </TouchableOpacity>
 
-        {/* Physical card */}
+        {/* Physical card visual */}
         <CardVisual card={card} />
 
-        {/* Info section */}
+        {/* Detail section */}
         <View style={s.infoSection}>
-          <Text style={s.sectionTitle}>Detail Kartu</Text>
+          <Text style={s.sectionTitle}>Detail {CARD_LABELS[card.type]}</Text>
 
-          <InfoRow label="Jenis" value={CARD_LABELS[card.type]} />
-          <InfoRow label="Nama" value={card.name} />
-          <InfoRow label="Nomor" value={card.number} mono />
-          {dataEntries.map(([key, value]) => (
-            <InfoRow key={key} label={key} value={value} />
-          ))}
-          <InfoRow label="Ditambahkan" value={new Date(card.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })} />
+          {card.type === 'ktp' && card.ktpData ? (
+            // Show all KTP fields
+            ktpFields.map(field => {
+              const value = card.ktpData![field]
+              if (!value || field === 'photoUri') return null
+              return (
+                <View key={field} style={s.row}>
+                  <Text style={s.rowLabel}>{KTP_FIELD_LABELS[field]}</Text>
+                  <Text style={[s.rowValue, field === 'nik' && { fontFamily: 'monospace', letterSpacing: 1 }]}>{value}</Text>
+                </View>
+              )
+            })
+          ) : (
+            // Generic card fields
+            <>
+              <View style={s.row}>
+                <Text style={s.rowLabel}>Jenis</Text>
+                <Text style={s.rowValue}>{CARD_LABELS[card.type]}</Text>
+              </View>
+              <View style={s.row}>
+                <Text style={s.rowLabel}>Nama</Text>
+                <Text style={s.rowValue}>{card.name}</Text>
+              </View>
+              <View style={s.row}>
+                <Text style={s.rowLabel}>Nomor</Text>
+                <Text style={[s.rowValue, { fontFamily: 'monospace', letterSpacing: 1 }]}>{card.number}</Text>
+              </View>
+            </>
+          )}
+
+          <View style={s.row}>
+            <Text style={s.rowLabel}>Ditambahkan</Text>
+            <Text style={s.rowValue}>{new Date(card.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</Text>
+          </View>
         </View>
 
-        {/* Delete */}
         <TouchableOpacity style={s.deleteBtn} onPress={handleDelete}>
           <Text style={s.deleteText}>Hapus Kartu</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
-  )
-}
-
-function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <View style={s.row}>
-      <Text style={s.rowLabel}>{label}</Text>
-      <Text style={[s.rowValue, mono && { fontFamily: 'monospace', letterSpacing: 1 }]}>{value}</Text>
-    </View>
   )
 }
 
@@ -72,7 +92,7 @@ const s = StyleSheet.create({
   backBtn: { marginBottom: 20 },
   backText: { fontSize: 15, color: '#888', fontWeight: '600' },
   infoSection: {
-    marginTop: 28,
+    marginTop: 24,
     backgroundColor: '#1a1a1a',
     borderRadius: 16,
     padding: 20,
@@ -89,12 +109,12 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#222',
   },
-  rowLabel: { fontSize: 14, color: '#666' },
-  rowValue: { fontSize: 14, fontWeight: '600', color: '#eee', maxWidth: '60%', textAlign: 'right' },
+  rowLabel: { fontSize: 13, color: '#666', flex: 1 },
+  rowValue: { fontSize: 13, fontWeight: '600', color: '#eee', flex: 2, textAlign: 'right' },
   deleteBtn: {
     marginTop: 28,
     padding: 16,
