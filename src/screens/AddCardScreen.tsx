@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert, ActivityIndicator, Image } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import * as ImagePicker from 'expo-image-picker'
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator'
 import { addCard } from '../lib/storage'
 import { recognizeText } from '../lib/ocr'
 import { CARD_LABELS, type CardType, type IDCard, type KTPData } from '../types/card'
@@ -34,8 +35,7 @@ export default function AddCardScreen({ navigation }: any) {
     }
 
     const pickerOptions: ImagePicker.ImagePickerOptions = {
-      quality: 0.5,
-      base64: true,
+      quality: 0.8,
       exif: false,
     }
 
@@ -49,10 +49,21 @@ export default function AddCardScreen({ navigation }: any) {
     setImageUri(asset.uri)
     setOcrDone(false)
 
-    if (asset.base64) {
-      await runOCR(asset.base64)
-    } else {
-      Alert.alert('Error', 'Gagal membaca gambar. Coba lagi.')
+    // Resize to max 1024px width for fast OCR upload (~100-200KB)
+    try {
+      const manipulated = await manipulateAsync(
+        asset.uri,
+        [{ resize: { width: 1024 } }],
+        { compress: 0.6, format: SaveFormat.JPEG, base64: true }
+      )
+      if (manipulated.base64) {
+        await runOCR(manipulated.base64)
+      } else {
+        Alert.alert('Error', 'Gagal memproses gambar.')
+      }
+    } catch (e: any) {
+      console.warn('Image manipulation error:', e)
+      Alert.alert('Error', 'Gagal resize gambar. Coba lagi.')
     }
   }
 
