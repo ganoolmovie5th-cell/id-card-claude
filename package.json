@@ -1,0 +1,27 @@
+{
+  "name": "id-card-claude",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios"
+  },
+  "dependencies": {
+    "expo": "~54.0.0",
+    "expo-camera": "~16.0.0",
+    "expo-image-picker": "~16.0.0",
+    "expo-secure-store": "~14.0.0",
+    "react": "^19.0.0",
+    "react-native": "~0.79.0",
+    "react-native-safe-area-context": "~5.4.0",
+    "react-native-screens": "~4.9.0",
+    "@react-navigation/native": "^7.0.0",
+    "@react-navigation/native-stack": "^7.0.0",
+    "tesseract.js": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "typescript": "^5.5.0"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "ID Card Wallet",
+    "slug": "id-card-claude",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "splash": { "image": "./assets/splash-icon.png", "resizeMode": "contain", "backgroundColor": "#ffffff" },
+    "ios": { "supportsTablet": false },
+    "android": { "adaptiveIcon": { "foregroundImage": "./assets/adaptive-icon.png", "backgroundColor": "#ffffff" } },
+    "plugins": ["expo-camera", "expo-image-picker", "expo-secure-store"]
+  }
+}
