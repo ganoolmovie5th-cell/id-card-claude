@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native'
+import React, { useState, useEffect, useRef } from 'react'
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Keyboard } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { getPin, setPin } from '../lib/storage'
 
@@ -14,21 +14,40 @@ export default function LockScreen({ hasPin, onUnlock, onPinSet }: Props) {
   const [confirm, setConfirm] = useState('')
   const [step, setStep] = useState<'enter' | 'create' | 'confirm'>(hasPin ? 'enter' : 'create')
   const [error, setError] = useState('')
+  const [pinLength, setPinLength] = useState(0)
+  const submitting = useRef(false)
 
-  const handleSubmit = async () => {
+  // Get stored PIN length for auto-submit on enter
+  useEffect(() => {
+    if (hasPin) {
+      getPin().then(stored => { if (stored) setPinLength(stored.length) })
+    }
+  }, [hasPin])
+
+  // Auto-submit when PIN reaches expected length
+  useEffect(() => {
+    if (submitting.current) return
+    if (step === 'enter' && pinLength > 0 && pin.length === pinLength) {
+      submitting.current = true
+      handleSubmit(pin)
+    }
+  }, [pin])
+
+  const handleSubmit = async (currentPin?: string) => {
+    const value = currentPin || pin
     if (step === 'enter') {
       const stored = await getPin()
-      if (pin === stored) onUnlock()
-      else { setError('PIN salah'); setPinValue('') }
+      if (value === stored) { Keyboard.dismiss(); onUnlock() }
+      else { setError('PIN salah'); setPinValue(''); submitting.current = false }
     } else if (step === 'create') {
-      if (pin.length < 4) { setError('Minimal 4 digit'); return }
+      if (value.length < 4) { setError('Minimal 4 digit'); return }
       setStep('confirm')
-      setConfirm(pin)
+      setConfirm(value)
       setPinValue('')
       setError('')
     } else if (step === 'confirm') {
-      if (pin === confirm) { await setPin(pin); onPinSet() }
-      else { setError('PIN tidak cocok'); setPinValue('') }
+      if (value === confirm) { Keyboard.dismiss(); await setPin(value); onPinSet() }
+      else { setError('PIN tidak cocok'); setPinValue(''); submitting.current = false }
     }
   }
 
@@ -55,7 +74,7 @@ export default function LockScreen({ hasPin, onUnlock, onPinSet }: Props) {
           placeholderTextColor="#444"
         />
         {error ? <Text style={s.error}>{error}</Text> : null}
-        <TouchableOpacity style={s.btn} onPress={handleSubmit}>
+        <TouchableOpacity style={s.btn} onPress={() => handleSubmit()}>
           <Text style={s.btnText}>{step === 'enter' ? 'Unlock' : step === 'create' ? 'Lanjut' : 'Simpan'}</Text>
         </TouchableOpacity>
       </View>
