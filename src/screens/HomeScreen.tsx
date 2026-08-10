@@ -3,7 +3,8 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useFocusEffect } from '@react-navigation/native'
 import { getCards } from '../lib/storage'
-import { CARD_LABELS, CARD_COLORS, type IDCard } from '../types/card'
+import type { IDCard } from '../types/card'
+import CardVisual from '../components/CardVisual'
 
 export default function HomeScreen({ navigation }: any) {
   const [cards, setCards] = useState<IDCard[]>([])
@@ -15,7 +16,7 @@ export default function HomeScreen({ navigation }: any) {
   return (
     <SafeAreaView style={s.container}>
       <View style={s.header}>
-        <Text style={s.title}>ID Card Wallet</Text>
+        <Text style={s.title}>Kartu Saya</Text>
         <Text style={s.sub}>{cards.length} kartu tersimpan</Text>
       </View>
 
@@ -23,23 +24,25 @@ export default function HomeScreen({ navigation }: any) {
         data={cards}
         keyExtractor={item => item.id}
         contentContainerStyle={s.list}
+        showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={s.empty}>
-            <Text style={s.emptyIcon}>💳</Text>
+            <View style={s.emptyCard}>
+              <View style={s.emptyChip} />
+              <View style={s.emptyLine1} />
+              <View style={s.emptyLine2} />
+            </View>
             <Text style={s.emptyText}>Belum ada kartu</Text>
-            <Text style={s.emptySub}>Tap + untuk menambahkan</Text>
+            <Text style={s.emptySub}>Tap + untuk scan atau tambah manual</Text>
           </View>
         }
         renderItem={({ item }) => (
           <TouchableOpacity
-            style={[s.card, { borderLeftColor: CARD_COLORS[item.type] }]}
+            activeOpacity={0.85}
+            style={s.cardWrap}
             onPress={() => navigation.navigate('Detail', { id: item.id })}
           >
-            <View>
-              <Text style={s.cardType}>{CARD_LABELS[item.type]}</Text>
-              <Text style={s.cardName}>{item.name}</Text>
-              <Text style={s.cardNum}>{item.number}</Text>
-            </View>
+            <CardVisual card={item} compact />
           </TouchableOpacity>
         )}
       />
@@ -52,19 +55,43 @@ export default function HomeScreen({ navigation }: any) {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
-  header: { padding: 24, paddingBottom: 12 },
-  title: { fontSize: 28, fontWeight: '800', color: '#1a1a1a' },
-  sub: { fontSize: 14, color: '#888', marginTop: 4 },
-  list: { padding: 16 },
+  container: { flex: 1, backgroundColor: '#0f0f0f' },
+  header: { paddingHorizontal: 24, paddingTop: 20, paddingBottom: 8 },
+  title: { fontSize: 28, fontWeight: '800', color: '#fff' },
+  sub: { fontSize: 13, color: '#666', marginTop: 4 },
+  list: { padding: 20, paddingBottom: 100 },
+  cardWrap: { marginBottom: 16 },
   empty: { alignItems: 'center', paddingTop: 80 },
-  emptyIcon: { fontSize: 48 },
-  emptyText: { fontSize: 18, fontWeight: '600', color: '#1a1a1a', marginTop: 12 },
-  emptySub: { fontSize: 14, color: '#888', marginTop: 4 },
-  card: { backgroundColor: '#fff', borderRadius: 16, padding: 20, marginBottom: 12, borderLeftWidth: 4, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
-  cardType: { fontSize: 12, fontWeight: '600', color: '#888', textTransform: 'uppercase', letterSpacing: 1 },
-  cardName: { fontSize: 18, fontWeight: '700', color: '#1a1a1a', marginTop: 4 },
-  cardNum: { fontSize: 14, color: '#555', marginTop: 2, letterSpacing: 1 },
-  fab: { position: 'absolute', bottom: 24, right: 24, width: 56, height: 56, borderRadius: 28, backgroundColor: '#1E40AF', alignItems: 'center', justifyContent: 'center', shadowColor: '#1E40AF', shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
-  fabText: { color: '#fff', fontSize: 28, fontWeight: '300', marginTop: -2 },
+  emptyCard: {
+    width: 260,
+    height: 160,
+    borderRadius: 16,
+    backgroundColor: '#1a1a1a',
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+    padding: 20,
+    justifyContent: 'space-between',
+    marginBottom: 24,
+  },
+  emptyChip: { width: 32, height: 22, borderRadius: 4, backgroundColor: '#333' },
+  emptyLine1: { width: '70%', height: 12, borderRadius: 6, backgroundColor: '#222' },
+  emptyLine2: { width: '50%', height: 10, borderRadius: 5, backgroundColor: '#1f1f1f' },
+  emptyText: { fontSize: 16, fontWeight: '600', color: '#888' },
+  emptySub: { fontSize: 13, color: '#555', marginTop: 4 },
+  fab: {
+    position: 'absolute',
+    bottom: 32,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#fff',
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  fabText: { color: '#0f0f0f', fontSize: 28, fontWeight: '300', marginTop: -2 },
 })

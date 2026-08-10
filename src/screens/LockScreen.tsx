@@ -35,9 +35,14 @@ export default function LockScreen({ hasPin, onUnlock, onPinSet }: Props) {
   return (
     <SafeAreaView style={s.container}>
       <View style={s.inner}>
-        <Text style={s.icon}>🔒</Text>
+        <View style={s.lockIcon}>
+          <Text style={s.lockEmoji}>🔒</Text>
+        </View>
         <Text style={s.title}>
           {step === 'enter' ? 'Masukkan PIN' : step === 'create' ? 'Buat PIN Baru' : 'Konfirmasi PIN'}
+        </Text>
+        <Text style={s.subtitle}>
+          {step === 'enter' ? 'Akses kartu identitas Anda' : step === 'create' ? 'Minimal 4 digit' : 'Ketik ulang PIN Anda'}
         </Text>
         <TextInput
           style={s.input}
@@ -47,7 +52,7 @@ export default function LockScreen({ hasPin, onUnlock, onPinSet }: Props) {
           value={pin}
           onChangeText={setPinValue}
           placeholder="••••••"
-          placeholderTextColor="#ccc"
+          placeholderTextColor="#444"
         />
         {error ? <Text style={s.error}>{error}</Text> : null}
         <TouchableOpacity style={s.btn} onPress={handleSubmit}>
@@ -59,12 +64,14 @@ export default function LockScreen({ hasPin, onUnlock, onPinSet }: Props) {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff', justifyContent: 'center' },
+  container: { flex: 1, backgroundColor: '#0f0f0f', justifyContent: 'center' },
   inner: { alignItems: 'center', padding: 32 },
-  icon: { fontSize: 48, marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: '700', color: '#1a1a1a', marginBottom: 24 },
-  input: { width: 200, fontSize: 28, textAlign: 'center', borderBottomWidth: 2, borderColor: '#e5e5e5', paddingVertical: 12, letterSpacing: 8, color: '#1a1a1a' },
+  lockIcon: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#1a1a1a', alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
+  lockEmoji: { fontSize: 32 },
+  title: { fontSize: 22, fontWeight: '700', color: '#fff', marginBottom: 6 },
+  subtitle: { fontSize: 14, color: '#666', marginBottom: 28 },
+  input: { width: 200, fontSize: 28, textAlign: 'center', borderBottomWidth: 2, borderColor: '#2a2a2a', paddingVertical: 12, letterSpacing: 8, color: '#fff' },
   error: { color: '#ef4444', marginTop: 8, fontSize: 14 },
-  btn: { marginTop: 32, backgroundColor: '#1E40AF', paddingHorizontal: 48, paddingVertical: 14, borderRadius: 12 },
-  btnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  btn: { marginTop: 32, backgroundColor: '#fff', paddingHorizontal: 48, paddingVertical: 14, borderRadius: 12 },
+  btnText: { color: '#0f0f0f', fontSize: 16, fontWeight: '600' },
 })
