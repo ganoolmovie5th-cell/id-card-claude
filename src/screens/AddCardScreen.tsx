@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert,
 import { SafeAreaView } from 'react-native-safe-area-context'
 import * as ImagePicker from 'expo-image-picker'
 import { addCard } from '../lib/storage'
+import { recognizeText } from '../lib/ocr'
 import { CARD_LABELS, type CardType, type IDCard } from '../types/card'
 
 const cardTypes: CardType[] = ['ktp', 'sim', 'npwp', 'bpjs-kesehatan', 'bpjs-tk', 'krl', 'kk']
@@ -13,6 +14,7 @@ export default function AddCardScreen({ navigation }: any) {
   const [number, setNumber] = useState('')
   const [imageUri, setImageUri] = useState<string | null>(null)
   const [scanning, setScanning] = useState(false)
+  const [ocrDone, setOcrDone] = useState(false)
 
   const pickImage = async (useCamera: boolean) => {
     const permission = useCamera
@@ -25,53 +27,29 @@ export default function AddCardScreen({ navigation }: any) {
     }
 
     const result = useCamera
-      ? await ImagePicker.launchCameraAsync({ quality: 0.8 })
-      : await ImagePicker.launchImageLibraryAsync({ quality: 0.8 })
+      ? await ImagePicker.launchCameraAsync({ quality: 0.7 })
+      : await ImagePicker.launchImageLibraryAsync({ quality: 0.7 })
 
     if (result.canceled || !result.assets[0]) return
 
     const uri = result.assets[0].uri
     setImageUri(uri)
+    setOcrDone(false)
     await runOCR(uri)
   }
 
   const runOCR = async (uri: string) => {
     setScanning(true)
     try {
-      const Tesseract = require('tesseract.js')
-      const { data } = await Tesseract.recognize(uri, 'ind+eng')
-      const text = data.text || ''
-      extractFields(text)
-    } catch (e) {
-      // OCR failed silently — user can still type manually
-      console.warn('OCR failed:', e)
+      const result = await recognizeText(uri)
+      if (result.name) setName(result.name)
+      if (result.number) setNumber(result.number)
+      setOcrDone(true)
+    } catch (e: any) {
+      console.warn('OCR error:', e)
+      Alert.alert('OCR Gagal', 'Tidak bisa baca teks dari foto. Silakan isi manual.')
     } finally {
       setScanning(false)
-    }
-  }
-
-  const extractFields = (text: string) => {
-    const lines = text.split('\n').map((l: string) => l.trim()).filter(Boolean)
-
-    // Try to find NIK / number (16 digit for KTP, or long numeric sequences)
-    const numMatch = text.match(/\d[\d\s.]{10,}/g)
-    if (numMatch && !number) {
-      const clean = numMatch[0].replace(/[\s.]/g, '')
-      setNumber(clean)
-    }
-
-    // Try to find name — usually after "Nama" label or longest uppercase line
-    const namaLine = lines.find((l: string) => /^nama\s*[:]/i.test(l))
-    if (namaLine && !name) {
-      const extracted = namaLine.replace(/^nama\s*[:]\s*/i, '').trim()
-      if (extracted) setName(extracted)
-    } else if (!name) {
-      // Fallback: longest line with mostly uppercase letters
-      const candidates = lines.filter((l: string) => l.length > 3 && /^[A-Z\s'.,-]+$/.test(l))
-      if (candidates.length > 0) {
-        const longest = candidates.sort((a: string, b: string) => b.length - a.length)[0]
-        setName(longest)
-      }
     }
   }
 
@@ -121,7 +99,8 @@ export default function AddCardScreen({ navigation }: any) {
         {imageUri && !scanning && (
           <View style={s.previewWrap}>
             <Image source={{ uri: imageUri }} style={s.preview} resizeMode="cover" />
-            <TouchableOpacity style={s.removeImg} onPress={() => setImageUri(null)}>
+            {ocrDone && <View style={s.ocrBadge}><Text style={s.ocrBadgeText}>✓ Teks terbaca</Text></View>}
+            <TouchableOpacity style={s.removeImg} onPress={() => { setImageUri(null); setOcrDone(false) }}>
               <Text style={s.removeImgText}>✕</Text>
             </TouchableOpacity>
           </View>
@@ -196,6 +175,8 @@ const s = StyleSheet.create({
   preview: { width: '100%', height: 180, borderRadius: 12 },
   removeImg: { position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center' },
   removeImgText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  ocrBadge: { position: 'absolute', bottom: 8, left: 8, backgroundColor: 'rgba(22,163,74,0.9)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
+  ocrBadgeText: { color: '#fff', fontSize: 11, fontWeight: '600' },
   typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   typeBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a' },
   typeBtnActive: { backgroundColor: '#fff', borderColor: '#fff' },
