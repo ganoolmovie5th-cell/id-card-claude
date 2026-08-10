@@ -1,7 +1,7 @@
 import type { KTPData } from '../types/card'
 
 const OCR_API_URL = 'https://api.ocr.space/parse/image'
-const OCR_API_KEY = 'helloworld' // free tier public key
+const OCR_API_KEY = 'helloworld'
 
 export interface OCRResult {
   text: string
@@ -49,116 +49,94 @@ export async function recognizeText(base64Image: string): Promise<OCRResult> {
 }
 
 /**
- * Extract value after a label, stripping the colon/dot separator.
- * Handles formats like:
- *   "Nama : AGUS HIDAYATULLAH"
- *   "Nama: AGUS"
- *   "Nama AGUS"
+ * Clean any value: remove all leading/trailing colons, dots, dashes, weird chars
  */
-function extractValue(line: string, label: RegExp): string | null {
-  const match = line.match(label)
-  if (!match) return null
-  // Get everything after the matched label
-  const afterLabel = line.substring(match.index! + match[0].length)
-  // Aggressively strip leading colons, dots, dashes, spaces (even multiple)
-  const cleaned = afterLabel.replace(/^[\s:.\-;,=|]+/, '').trim()
-  // Also strip trailing colon if value ends with one
-  const final = cleaned.replace(/[:]+$/, '').trim()
-  return final || null
+function clean(val: string): string {
+  return val
+    .replace(/^[\s:.\-;,=|/\\]+/, '')  // strip leading junk
+    .replace(/[\s:.\-;,=|/\\]+$/, '')   // strip trailing junk
+    .trim()
 }
 
 /**
- * Find a field value by scanning all lines for the label pattern.
- * Returns the cleaned value (no colon prefix).
+ * Parse KTP by splitting each line on the FIRST colon (or similar separator),
+ * then matching the left side to known KTP field labels.
  */
-function findValue(lines: string[], label: RegExp): string | undefined {
-  for (const line of lines) {
-    const val = extractValue(line, label)
-    if (val && val.length > 1) return val
-  }
-  return undefined
-}
-
-/**
- * Find value on the NEXT line after a label (for cases where value is on separate line)
- */
-function findValueNextLine(lines: string[], label: RegExp): string | undefined {
-  for (let i = 0; i < lines.length - 1; i++) {
-    if (label.test(lines[i])) {
-      const next = lines[i + 1].trim()
-      if (next && !/^(nik|nama|tempat|alamat|agama|status|rt|jenis|pekerjaan|kewarga|berlaku|kecamatan|kel|gol)/i.test(next)) {
-        return next
-      }
-    }
-  }
-  return undefined
-}
-
 function parseKTP(text: string): KTPData {
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
   const data: KTPData = {}
 
-  // PROVINSI — first line often "PROVINSI ..." or just province name at top
-  data.provinsi = findValue(lines, /provinsi/i)
-  if (!data.provinsi && lines.length > 0) {
-    const first = lines[0]
-    if (!/nik|nama|kartu/i.test(first)) data.provinsi = first
+  // Build key-value pairs from lines that contain a separator
+  const pairs: Array<{ label: string; value: string }> = []
+  for (const line of lines) {
+    // Split on first colon or similar separator
+    const sepIndex = line.search(/\s*[:]\s*/)
+    if (sepIndex > 0) {
+      const label = line.substring(0, sepIndex).trim()
+      const value = clean(line.substring(sepIndex + 1))
+      if (label && value) pairs.push({ label, value })
+    }
   }
 
-  // KAB/KOTA
-  data.kabupaten = findValue(lines, /(?:kab(?:upaten)?|kota)/i)
-  if (!data.kabupaten && lines.length > 1) {
-    const second = lines[1]
-    if (!/nik|nama|kartu|provinsi/i.test(second)) data.kabupaten = second
+  // Match pairs to KTP fields
+  for (const { label, value } of pairs) {
+    const l = label.toLowerCase().replace(/[^a-z]/g, '')
+
+    if (/^provinsi/.test(l)) data.provinsi = value
+    else if (/^(kab|kota)/.test(l)) data.kabupaten = value
+    else if (/^nik$/.test(l)) data.nik = value
+    else if (/^nama$/.test(l)) data.nama = value
+    else if (/^tempat/.test(l) || /^ttl/.test(l)) {
+      const parts = value.split(/\s*,\s*/)
+      if (parts.length >= 2) {
+        data.tempatLahir = clean(parts[0])
+        data.tanggalLahir = clean(parts.slice(1).join(','))
+      } else {
+        data.tempatLahir = value
+      }
+    }
+    else if (/^jeniskelamin/.test(l) || /^kelamin/.test(l)) data.jenisKelamin = value
+    else if (/^alamat/.test(l)) data.alamat = value
+    else if (/^rt/.test(l) && /rw/.test(l)) data.rtRw = value
+    else if (/^kel/.test(l) || /^desa/.test(l)) data.kelDesa = value
+    else if (/^kecamatan/.test(l) || /^kec/.test(l)) data.kecamatan = value
+    else if (/^agama/.test(l)) data.agama = value
+    else if (/^status/.test(l)) {
+      // Strip "Perkawinan" prefix if captured
+      data.statusPerkawinan = value.replace(/^perkawinan\s*/i, '')
+    }
+    else if (/^pekerjaan/.test(l) || /^pekerja/.test(l)) data.pekerjaan = value
+    else if (/^kewarganegaraan/.test(l) || /^warganegara/.test(l)) data.kewarganegaraan = value
+    else if (/^berlaku/.test(l)) data.berlakuHingga = value
   }
 
-  // NIK — exactly 16 digits
-  const nikMatch = text.match(/\b(\d{16})\b/)
-  if (nikMatch) data.nik = nikMatch[1]
+  // NIK fallback: find 16-digit number anywhere in text
   if (!data.nik) {
-    // Try finding long digit sequences and clean them
-    const longNum = text.match(/(\d[\d\s.]{14,})/g)
-    if (longNum) {
-      for (const num of longNum) {
-        const cleaned = num.replace(/[\s.]/g, '')
-        if (cleaned.length === 16) { data.nik = cleaned; break }
+    const nikMatch = text.match(/\b(\d{16})\b/)
+    if (nikMatch) data.nik = nikMatch[1]
+    else {
+      const longNum = text.match(/(\d[\d\s.]{14,})/g)
+      if (longNum) {
+        for (const num of longNum) {
+          const cleaned = num.replace(/[\s.]/g, '')
+          if (cleaned.length === 16) { data.nik = cleaned; break }
+          if (cleaned.length > 12) { data.nik = cleaned; break }
+        }
       }
     }
   }
 
-  // Nama — value after "Nama" label, NOT including the colon
-  data.nama = findValue(lines, /\bNama\b/i)
-  if (!data.nama) data.nama = findValueNextLine(lines, /\bNama\b/i)
-  // Fallback: longest uppercase-only line that's not a known label
+  // Nama fallback: longest uppercase line
   if (!data.nama) {
     const candidates = lines.filter(l =>
       l.length > 3 &&
       /^[A-Z\s'.,\-]+$/.test(l) &&
-      !/^(PROVINSI|KAB|KOTA|NIK|NAMA|ALAMAT|AGAMA|ISLAM|KRISTEN|WNI|LAKI|PEREMPUAN|BELUM|KAWIN|SEUMUR)/i.test(l)
+      !/^(PROVINSI|KAB|KOTA|NIK|NAMA|ALAMAT|AGAMA|ISLAM|KRISTEN|WNI|LAKI|PEREMPUAN|BELUM|KAWIN|SEUMUR|KARTU|TANDA|PENDUDUK)/i.test(l)
     )
     if (candidates.length > 0) data.nama = candidates.sort((a, b) => b.length - a.length)[0]
   }
 
-  // Tempat/Tgl Lahir
-  const ttl = findValue(lines, /tempat.*?(?:tgl)?.*?lahir/i) || findValue(lines, /\bttl\b/i)
-  if (ttl) {
-    // Format: "JAKARTA, 01-01-1990" or "JAKARTA,01-01-1990"
-    const parts = ttl.split(/\s*,\s*/)
-    if (parts.length >= 2) {
-      data.tempatLahir = parts[0].trim()
-      data.tanggalLahir = parts.slice(1).join(',').trim()
-    } else {
-      data.tempatLahir = ttl
-    }
-  }
-  // Standalone date fallback
-  if (!data.tanggalLahir) {
-    const dateMatch = text.match(/(\d{2}[-/.]\d{2}[-/.]\d{4})/)
-    if (dateMatch) data.tanggalLahir = dateMatch[1]
-  }
-
-  // Jenis Kelamin
-  data.jenisKelamin = findValue(lines, /jenis\s*kelamin/i)
+  // Jenis Kelamin fallback
   if (!data.jenisKelamin) {
     if (/laki[\s\-]*laki/i.test(text)) data.jenisKelamin = 'LAKI-LAKI'
     else if (/perempuan/i.test(text)) data.jenisKelamin = 'PEREMPUAN'
@@ -169,79 +147,53 @@ function parseKTP(text: string): KTPData {
     else if (jk.includes('PEREM')) data.jenisKelamin = 'PEREMPUAN'
   }
 
-  // Gol. Darah — extract but DON'T put in alamat
-  // On KTP, "Gol. Darah" is on same line as Jenis Kelamin
-  // We just need to make sure alamat doesn't capture it
-
-  // Alamat — specifically after "Alamat" label, NOT "Gol. Darah"
-  data.alamat = findValue(lines, /^Alamat\b/i)
-  if (!data.alamat) data.alamat = findValueNextLine(lines, /^Alamat$/i)
-  // Clean: remove gol darah if accidentally captured
-  if (data.alamat) {
-    data.alamat = data.alamat.replace(/gol\.?\s*darah\s*[:.]?\s*\S*/gi, '').trim()
-  }
-
-  // RT/RW
-  data.rtRw = findValue(lines, /\bRT\s*[/.]\s*RW\b/i)
+  // RT/RW fallback
   if (!data.rtRw) {
-    // Look for pattern like "003/002" or "003 / 002"
     const rtMatch = text.match(/\b(\d{3}\s*[/.]\s*\d{3})\b/)
     if (rtMatch) data.rtRw = rtMatch[1].replace(/\s/g, '')
   }
 
-  // Kel/Desa — specifically "Kel/Desa" label
-  data.kelDesa = findValue(lines, /kel(?:urahan)?\s*[/.]\s*desa/i)
-  if (!data.kelDesa) data.kelDesa = findValue(lines, /\bdesa\b/i)
-  if (!data.kelDesa) data.kelDesa = findValue(lines, /\bkelurahan\b/i)
-
-  // Kecamatan
-  data.kecamatan = findValue(lines, /kecamatan/i)
-
-  // Agama
-  data.agama = findValue(lines, /agama/i)
+  // Agama fallback
   if (!data.agama) {
     const agamaList = ['ISLAM', 'KRISTEN', 'KATOLIK', 'HINDU', 'BUDDHA', 'KONGHUCU']
     for (const a of agamaList) {
-      // Match standalone word
-      const re = new RegExp(`\\b${a}\\b`, 'i')
-      if (re.test(text)) { data.agama = a; break }
+      if (new RegExp(`\\b${a}\\b`, 'i').test(text)) { data.agama = a; break }
     }
   }
 
-  // Status Perkawinan
-  data.statusPerkawinan = findValue(lines, /status\s*(?:perkawinan)?/i)
+  // Status fallback
   if (!data.statusPerkawinan) {
     if (/belum\s*kawin/i.test(text)) data.statusPerkawinan = 'BELUM KAWIN'
     else if (/\bkawin\b/i.test(text)) data.statusPerkawinan = 'KAWIN'
-    else if (/cerai\s*hidup/i.test(text)) data.statusPerkawinan = 'CERAI HIDUP'
-    else if (/cerai\s*mati/i.test(text)) data.statusPerkawinan = 'CERAI MATI'
-  }
-  // Clean: status might capture "Perkawinan" prefix
-  if (data.statusPerkawinan) {
-    data.statusPerkawinan = data.statusPerkawinan.replace(/^perkawinan\s*[:.]?\s*/i, '').trim()
+    else if (/cerai/i.test(text)) data.statusPerkawinan = 'CERAI'
   }
 
-  // Pekerjaan — multiple patterns
-  data.pekerjaan = findValue(lines, /pekerjaan/i)
-  if (!data.pekerjaan) data.pekerjaan = findValueNextLine(lines, /pekerjaan/i)
-  // Common OCR misreads
-  if (!data.pekerjaan) {
-    data.pekerjaan = findValue(lines, /pekerja[ao]n/i) // OCR might misread 'a' as 'o'
+  // Kewarganegaraan fallback
+  if (!data.kewarganegaraan) {
+    if (/\bWNI\b/.test(text)) data.kewarganegaraan = 'WNI'
+    else if (/\bWNA\b/.test(text)) data.kewarganegaraan = 'WNA'
   }
 
-  // Kewarganegaraan
-  data.kewarganegaraan = findValue(lines, /kewarganegaraan/i)
-  if (!data.kewarganegaraan) data.kewarganegaraan = findValue(lines, /warga\s*negara/i)
-  if (!data.kewarganegaraan && /\bWNI\b/.test(text)) data.kewarganegaraan = 'WNI'
-  if (!data.kewarganegaraan && /\bWNA\b/.test(text)) data.kewarganegaraan = 'WNA'
+  // Berlaku fallback
+  if (!data.berlakuHingga) {
+    if (/seumur\s*hidup/i.test(text)) data.berlakuHingga = 'SEUMUR HIDUP'
+  }
+  if (data.berlakuHingga && /seumur/i.test(data.berlakuHingga)) {
+    data.berlakuHingga = 'SEUMUR HIDUP'
+  }
 
-  // Berlaku Hingga — multiple patterns
-  data.berlakuHingga = findValue(lines, /berlaku\s*(?:hingga|s[/.]?d[/.]?)/i)
-  if (!data.berlakuHingga) data.berlakuHingga = findValueNextLine(lines, /berlaku/i)
-  if (!data.berlakuHingga && /seumur\s*hidup/i.test(text)) data.berlakuHingga = 'SEUMUR HIDUP'
-  // KTP-el is always "SEUMUR HIDUP"
-  if (data.berlakuHingga) {
-    if (/seumur/i.test(data.berlakuHingga)) data.berlakuHingga = 'SEUMUR HIDUP'
+  // Tanggal lahir fallback
+  if (!data.tanggalLahir) {
+    const dateMatch = text.match(/(\d{2}[-/.]\d{2}[-/.]\d{4})/)
+    if (dateMatch) data.tanggalLahir = dateMatch[1]
+  }
+
+  // Clean all values one more time (remove any stray colons)
+  const keys = Object.keys(data) as (keyof KTPData)[]
+  for (const key of keys) {
+    if (data[key] && typeof data[key] === 'string') {
+      (data as any)[key] = clean(data[key] as string)
+    }
   }
 
   return data
