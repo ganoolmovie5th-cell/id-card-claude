@@ -15,25 +15,40 @@ export interface OCRResult {
  * Pass the raw base64 from expo-image-picker { base64: true }
  */
 export async function recognizeText(base64Image: string): Promise<OCRResult> {
+  // Build multipart form data - attach as file for reliability in RN
   const body = new FormData()
   body.append('base64Image', `data:image/jpeg;base64,${base64Image}`)
-  body.append('language', 'eng+ind')
+  body.append('language', 'eng')
   body.append('isOverlayRequired', 'false')
   body.append('OCREngine', '2')
+  body.append('filetype', 'jpg')
 
   const res = await fetch(OCR_API_URL, {
     method: 'POST',
-    headers: { apikey: OCR_API_KEY },
+    headers: {
+      'apikey': OCR_API_KEY,
+    },
     body,
   })
 
-  const json = await res.json()
-  const text = json?.ParsedResults?.[0]?.ParsedText || ''
+  const text = await res.text()
+  let json: any
+  try {
+    json = JSON.parse(text)
+  } catch {
+    throw new Error(`OCR response parse error: ${text.substring(0, 200)}`)
+  }
 
-  const ktpData = parseKTP(text)
+  if (json.IsErroredOnProcessing || (json.OCRExitCode && json.OCRExitCode !== 1)) {
+    const errMsg = Array.isArray(json.ErrorMessage) ? json.ErrorMessage[0] : (json.error || 'OCR processing failed')
+    throw new Error(errMsg)
+  }
+
+  const parsedText = json?.ParsedResults?.[0]?.ParsedText || ''
+  const ktpData = parseKTP(parsedText)
 
   return {
-    text,
+    text: parsedText,
     name: ktpData.nama || null,
     number: ktpData.nik || null,
     ktpData,

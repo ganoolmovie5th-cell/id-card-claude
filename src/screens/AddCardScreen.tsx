@@ -33,9 +33,15 @@ export default function AddCardScreen({ navigation }: any) {
       return
     }
 
+    const pickerOptions: ImagePicker.ImagePickerOptions = {
+      quality: 0.5,
+      base64: true,
+      exif: false,
+    }
+
     const result = useCamera
-      ? await ImagePicker.launchCameraAsync({ quality: 0.7, base64: true })
-      : await ImagePicker.launchImageLibraryAsync({ quality: 0.7, base64: true })
+      ? await ImagePicker.launchCameraAsync(pickerOptions)
+      : await ImagePicker.launchImageLibraryAsync(pickerOptions)
 
     if (result.canceled || !result.assets[0]) return
 
@@ -62,10 +68,14 @@ export default function AddCardScreen({ navigation }: any) {
         if (result.name) setName(result.name)
         if (result.number) setNumber(result.number)
       }
-      setOcrDone(true)
+      if (!result.text) {
+        Alert.alert('Peringatan', 'Foto terbaca tapi tidak ada teks terdeteksi. Pastikan foto jelas dan terang.')
+      } else {
+        setOcrDone(true)
+      }
     } catch (e: any) {
       console.warn('OCR error:', e)
-      Alert.alert('OCR Gagal', 'Tidak bisa baca teks dari foto. Silakan isi manual.')
+      Alert.alert('OCR Gagal', `${e?.message || 'Tidak bisa baca teks dari foto'}. Silakan isi manual atau coba foto ulang dengan cahaya lebih terang.`)
     } finally {
       setScanning(false)
     }
