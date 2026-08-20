@@ -2,3 +2,7 @@ node_modules/
 .expo/
 dist/
 .DS_Store
+
+# AI IDE config
+.kiro/
+.claude/
