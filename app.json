@@ -11,7 +11,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#0C3552"
       },
       "permissions": [
         "android.permission.CAMERA",
@@ -26,7 +26,7 @@
         {
           "image": "./assets/splash-icon.png",
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#0C3552"
         }
       ],
       "expo-camera",
